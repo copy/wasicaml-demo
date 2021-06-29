@@ -1,0 +1,104 @@
+<!doctype html>
+<script>
+function unimplemented(name) {
+    return function() {
+        console.log(name, arguments);
+        throw "unimplemented";
+    }
+}
+
+const WASI_ESUCCESS = 0;
+const WASI_EBADF = 8;
+const WASI_EINVAL = 28;
+
+var wasm_exports;
+
+function fd_write(fd, iovs, iovs_len, nwritten) {
+    const mem32 = new Int32Array(wasm_exports.memory.buffer);
+    const buffer = [];
+    let written = 0;
+
+    for(let i = 0; i < iovs_len; i++)
+    {
+        const ptr = iovs + i * 8;
+        const buf = mem32[ptr >> 2];
+        const len = mem32[ptr + 4 >> 2];
+
+        const slice = new Uint8Array(wasm_exports.memory.buffer, buf, len);
+        buffer.push.apply(buffer, slice);
+        written += slice.length;
+    }
+
+    console.log(String.fromCharCode.apply(null, buffer));
+
+    mem32[nwritten >> 2] = written;
+
+    return WASI_ESUCCESS;
+}
+
+// see:
+// - wasicaml/js/main.js
+
+class OCamlExn extends Error {
+}
+
+function wasicaml_try(f, ctx) {
+    try {
+        wasm_exports.wasicaml_call(f, ctx);
+        return 0;
+    } catch (e) {
+        if (e instanceof OCamlExn) {
+            return 1;
+        } else
+            throw e;
+    }
+}
+
+function wasicaml_try4(f, ctx1, ctx2, ctx3, ctx4) {
+    try {
+        wasm_exports.wasicaml_call4(f, ctx1, ctx2, ctx3, ctx4);
+        return 0;
+    } catch (e) {
+        if (e instanceof OCamlExn) {
+            return 1;
+        } else
+            throw e;
+    }
+}
+
+function wasicaml_throw() {
+    throw new OCamlExn("An OCaml exception");
+}
+
+WebAssembly.instantiateStreaming(fetch("_build/test.wasm"), {
+    wasicaml: {
+        wasicaml_try: wasicaml_try,
+        wasicaml_try4: wasicaml_try4,
+        wasicaml_throw: wasicaml_throw,
+        //wasicaml_system: wasicaml_system(session),
+        //wasicaml_rename: wasicaml_rename(session),
+    },
+    wasi_snapshot_preview1: {
+        args_get: function() { return WASI_ESUCCESS; },
+        args_sizes_get: function() { return WASI_ESUCCESS; },
+        environ_get: unimplemented("environ_get"),
+        environ_sizes_get: function() { return WASI_ESUCCESS; },
+        clock_time_get: function() { return 0; },
+        fd_close: unimplemented("fd_close"),
+        fd_fdstat_get: unimplemented("fd_fdstat_get"),
+        fd_prestat_get: function() { return WASI_EBADF; },
+        fd_prestat_dir_name: function() { return WASI_EINVAL; },
+        fd_read: unimplemented("fd_read"),
+        fd_seek: function() { return WASI_EINVAL; },
+        fd_tell: function() { return WASI_EINVAL; },
+        fd_write: fd_write,
+        path_filestat_get: unimplemented("path_filestat_get"),
+        path_open: unimplemented("path_open"),
+        proc_exit: unimplemented("proc_exit"),
+    }
+}).then(result => {
+    const { instance, module } = result;
+    wasm_exports = instance.exports;
+    instance.exports._start();
+});
+</script>
