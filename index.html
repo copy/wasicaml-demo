@@ -1,4 +1,5 @@
 <!doctype html>
+<pre id=log></pre>
 <script>
 function unimplemented(name) {
     return function() {
@@ -29,7 +30,9 @@ function fd_write(fd, iovs, iovs_len, nwritten) {
         written += slice.length;
     }
 
-    console.log(String.fromCharCode.apply(null, buffer));
+    const text = String.fromCharCode.apply(null, buffer);
+    log.textContent += text;
+    console.log(text);
 
     mem32[nwritten >> 2] = written;
 
@@ -85,7 +88,7 @@ WebAssembly.instantiateStreaming(fetch("_build/test.wasm"), {
         environ_sizes_get: function() { return WASI_ESUCCESS; },
         clock_time_get: function() { return 0; },
         fd_close: unimplemented("fd_close"),
-        fd_fdstat_get: unimplemented("fd_fdstat_get"),
+        fd_fdstat_get: function() { return WASI_EBADF; },
         fd_prestat_get: function() { return WASI_EBADF; },
         fd_prestat_dir_name: function() { return WASI_EINVAL; },
         fd_read: unimplemented("fd_read"),
@@ -95,10 +98,16 @@ WebAssembly.instantiateStreaming(fetch("_build/test.wasm"), {
         path_filestat_get: unimplemented("path_filestat_get"),
         path_open: unimplemented("path_open"),
         proc_exit: unimplemented("proc_exit"),
-    }
+    },
+    env: {
+        ocaml_to_js: function(x) { return x * 3; },
+    },
 }).then(result => {
     const { instance, module } = result;
+    console.log(instance.exports);
     wasm_exports = instance.exports;
     instance.exports._start();
+
+    instance.exports.js_to_ocaml();
 });
 </script>
