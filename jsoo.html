@@ -1,0 +1,30 @@
+<!doctype html>
+<script src=_build/default/jsoo.bc.js></script>
+<pre id=fps></pre>
+<script>
+const width = 200;
+const height = 200;
+const canvas = document.createElement("canvas");
+canvas.width = width;
+canvas.height = height;
+canvas.style.width = 4 * width / window.devicePixelRatio + "px";
+canvas.style.height = 4 * height / window.devicePixelRatio + "px";
+canvas.style.imageRendering = "crisp-edges";
+canvas.style.imageRendering = "pixelated";
+document.body.appendChild(canvas);
+const ctx = canvas.getContext("2d");
+jsoo.init();
+
+function draw() {
+    const start = performance.now();
+    const res = jsoo.step();
+    const buffer = res.c.buffer; // XXX: bytes representation is undocumented
+    const id = new ImageData(new Uint8ClampedArray(buffer, res, 4 * width * height), width, height);
+    ctx.putImageData(id, 0, 0);
+    const end = performance.now();
+    fps.textContent = (end - start).toFixed(1);
+    requestAnimationFrame(draw);
+}
+draw();
+</script>
+

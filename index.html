@@ -1,5 +1,6 @@
 <!doctype html>
 <pre id=log></pre>
+<pre id=fps></pre>
 <script>
 function unimplemented(name) {
     return function() {
@@ -12,7 +13,7 @@ const WASI_ESUCCESS = 0;
 const WASI_EBADF = 8;
 const WASI_EINVAL = 28;
 
-var wasm_exports;
+let wasm_exports;
 
 function fd_write(fd, iovs, iovs_len, nwritten) {
     const mem32 = new Int32Array(wasm_exports.memory.buffer);
@@ -104,10 +105,35 @@ WebAssembly.instantiateStreaming(fetch("_build/test.wasm"), {
     },
 }).then(result => {
     const { instance, module } = result;
+    const memory = instance.exports.memory;
     console.log(instance.exports);
     wasm_exports = instance.exports;
     instance.exports._start();
+    instance.exports.init();
+    const step = instance.exports.step;
 
-    instance.exports.js_to_ocaml();
+    const width = 200;
+    const height = 200;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = 4 * width / window.devicePixelRatio + "px";
+    canvas.style.height = 4 * height / window.devicePixelRatio + "px";
+    canvas.style.imageRendering = "crisp-edges";
+    canvas.style.imageRendering = "pixelated";
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext("2d");
+
+    function draw() {
+        const start = performance.now();
+        const res = step();
+        const id = new ImageData(new Uint8ClampedArray(memory.buffer, res, 4 * width * height), width, height);
+        ctx.putImageData(id, 0, 0);
+        const end = performance.now();
+        fps.textContent = (end - start).toFixed(1);
+        requestAnimationFrame(draw);
+        //setTimeout(draw, 1000);
+    }
+    draw();
 });
 </script>
